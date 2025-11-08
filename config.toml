@@ -1,0 +1,23 @@
+[dataset]
+train_size=50_000
+test_size=2_000
+sequence_length=30
+num_features = 3
+
+[dataloader]
+batch_size=128
+
+[model]
+name="SimpleGRU"
+input_size=3
+hidden_size=512
+num_layers=2
+output_size=1
+
+[optimizer]
+name="SGD"
+lr=0.0001
+momentum=0.9
+
+[trainer]
+epochs=50
