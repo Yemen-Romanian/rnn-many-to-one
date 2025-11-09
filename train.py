@@ -1,7 +1,11 @@
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from torch.optim import Adam, SGD
+import logging
+from experiment_logger import TensorboardLogger
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 class Trainer:
     """
@@ -15,13 +19,21 @@ class Trainer:
         self.criterion = nn.MSELoss(reduce='sum') 
         self.optimizer = optimizer
         self.epochs = epochs
+        self.tb_logger = TensorboardLogger(experiment_name="RNN_Sequence_Regression")
+        self.console_logger = logging.getLogger("Trainer")
 
     def train(self):
+        self.tb_logger.log_model(self.model)
         for epoch_num in range(1, self.epochs + 1):
             train_loss = self.training_step()
-            val_loss = self.evaluation_step()
-            print(f"Epoch {epoch_num}/{self.epochs} - Train Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f}")
+            val_loss, targets, predictions = self.evaluation_step()
+
+            self.tb_logger.log_loss(train_loss, tag="Train", step=epoch_num)
+            self.tb_logger.log_loss(val_loss, tag="Validation", step=epoch_num)
+            self.tb_logger.log_plot(predictions, targets, step=epoch_num)
+            self.console_logger.info(f"Epoch {epoch_num}/{self.epochs} - Train Loss: {train_loss:.4f} - Val Loss: {val_loss:.4f}")
         
+        self.tb_logger.close()
 
     def training_step(self):
         self.model.train()
@@ -47,6 +59,8 @@ class Trainer:
         self.model.eval()
         running_loss = 0.0
         pbar = tqdm(self.val_loader, desc="Testing step")
+        targets_list = []
+        prediction_list = []
 
         with torch.no_grad():
             for inputs, targets in self.val_loader:
@@ -54,6 +68,9 @@ class Trainer:
                 outputs = self.model(inputs)
                 loss = self.criterion(outputs.squeeze(), targets)
                 running_loss += loss.item() * inputs.size(0)
+                targets_list.extend(targets.cpu().numpy())
+                prediction_list.extend(outputs.squeeze().cpu().numpy())
                 pbar.update(1)
+
         epoch_loss = running_loss / len(self.val_loader.dataset)
-        return epoch_loss
+        return epoch_loss, targets_list, prediction_list
